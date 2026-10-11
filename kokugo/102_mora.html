@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本語102モーラ 音読正確性評価アプリ</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 8mm;
+            }
+
+            html, body {
+                background-color: #ffffff !important;
+                color: #000000 !important;
+                font-size: 10pt;
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+                min-height: 0 !important;
+                display: block !important;
+            }
+
+            /* 画面用UIの非表示 */
+            header, main, footer, .no-print {
+                display: none !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+
+            /* 印刷専用エリアを表示 */
+            .print-only {
+                display: block !important;
+            }
+
+            /* ページブレイク設定 */
+            .print-page {
+                page-break-after: always;
+                break-after: page;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                height: 270mm;
+                max-height: 270mm;
+                box-sizing: border-box;
+                padding: 2mm 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                overflow: hidden;
+            }
+
+            .print-page:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+
+            table.print-table {
+                width: 100%;
+                border-collapse: collapse;
+                table-layout: fixed;
+            }
+
+            table.print-table th, table.print-table td {
+                border: 1px solid #333333;
+                padding: 4px 3px;
+                text-align: center;
+                font-size: 10pt;
+                line-height: 1.2;
+            }
+
+            table.print-table th {
+                background-color: #f1f5f9 !important;
+                font-size: 9pt;
+                font-weight: bold;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            table.print-table td.char-cell {
+                font-weight: bold;
+                font-size: 12pt;
+                background-color: #ffffff !important;
+                border-right: 1px dotted #888888;
+                width: 50%;
+            }
+
+            table.print-table td.mark-cell {
+                font-size: 12pt;
+                font-weight: bold;
+                background-color: #ffffff !important;
+                width: 50%;
+            }
+
+            table.print-table td.empty-cell {
+                background-color: #fafafa !important;
+            }
+        }
+
+        @media screen {
+            .print-only {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <header class="no-print bg-slate-900 text-white p-4 shadow-md">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wide">日本語102モーラ 音読検査</h1>
+            <div id="nav-buttons" class="space-x-2">
+                <button onclick="app.showDashboard()" class="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 rounded transition">検査一覧・新規</button>
+                <button onclick="app.exportAllJSON()" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded transition border border-slate-600">全データ保存 (JSON)</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツエリア -->
+    <main class="flex-grow max-w-6xl w-full mx-auto p-4 flex flex-col justify-center">
+
+        <!-- エラーメッセージ用ダイアログ -->
+        <div id="error-banner" class="hidden no-print mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            <h3 class="font-bold text-lg mb-1">エラーが発生しました</h3>
+            <p id="error-message"></p>
+        </div>
+
+        <section id="view-dashboard" class="no-print space-y-6">
+            <!-- 新規検査作成カード -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold border-b pb-2 mb-4 text-slate-800">新規検査の開始</h2>
+                <p class="text-xs text-slate-500 mb-4">※氏名やカルテ番号は入力しないでください。研究・施設内で定義された匿名IDをご使用ください。</p>
+                
+                <form id="form-new-session" onsubmit="app.startNewSession(event)" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">匿名対象者ID <span class="text-red-500">*</span></label>
+                        <input type="text" id="input-examinee-id" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none" placeholder="例: SUBJ-001 / P-101">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">年代（任意）</label>
+                        <select id="input-age-group" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none">
+                            <option value="">未選択</option>
+                            <option value="10s">10代以下</option>
+                            <option value="20s">20代</option>
+                            <option value="30s">30代</option>
+                            <option value="40s">40代</option>
+                            <option value="50s">50代</option>
+                            <option value="60s">60代</option>
+                            <option value="70s">70代</option>
+                            <option value="80s+">80代以上</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">評価区分（任意）</label>
+                        <select id="input-session-tag" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none">
+                            <option value="初回">初回評価</option>
+                            <option value="中間">中間評価</option>
+                            <option value="最終">最終評価</option>
+                            <option value="再検査">再検査</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">検査日 <span class="text-red-500">*</span></label>
+                        <input type="date" id="input-test-date" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">検査者ID <span class="text-red-500">*</span></label>
+                        <input type="text" id="input-examiner" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:outline-none" placeholder="例: ST-01 / EX-A">
+                    </div>
+                    <div class="md:col-span-3 lg:col-span-6 flex justify-end mt-2">
+                        <button type="submit" class="px-6 py-2.5 bg-slate-900 text-white font-medium rounded hover:bg-slate-800 transition">音読検査を開始する</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 過去の検査履歴テーブル -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-lg font-bold text-slate-800">検査実施記録一覧</h2>
+                    <label class="cursor-pointer text-sm text-slate-600 hover:text-slate-900 underline">
+                        JSONデータを復元
+                        <input type="file" accept=".json" onchange="app.importJSON(event)" class="hidden">
+                    </label>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 text-xs font-semibold uppercase border-b">
+                                <th class="p-3">セッションID</th>
+                                <th class="p-3">匿名対象者ID</th>
+                                <th class="p-3">属性</th>
+                                <th class="p-3">区分</th>
+                                <th class="p-3">検査日</th>
+                                <th class="p-3">検査者ID</th>
+                                <th class="p-3">進行状況</th>
+                                <th class="p-3 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="session-list-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- JSで動的描画 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-testing" class="hidden no-print flex flex-col justify-between max-w-2xl mx-auto w-full py-2 min-h-[80vh]">
+            <!-- 上部情報バー -->
+            <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
+                <div class="text-sm text-slate-600 space-y-0.5">
+                    <div><span class="font-semibold text-slate-800">対象ID:</span> <span id="test-info-examinee"></span></div>
+                    <div><span class="font-semibold text-slate-800">検査日:</span> <span id="test-info-date"></span></div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-slate-500">進捗状況</div>
+                    <div class="text-2xl font-bold text-slate-800"><span id="test-info-index">1</span> / 102</div>
+                </div>
+            </div>
+
+            <!-- 中央刺激表示領域 -->
+            <div class="my-8 bg-white border border-slate-300 rounded-2xl shadow-sm h-80 flex items-center justify-center select-none">
+                <span id="test-stimulus-display" class="text-9xl font-bold text-slate-900 tracking-wider"></span>
+            </div>
+
+            <!-- 下部判定・操作エリア -->
+            <div class="space-y-4">
+                <!-- 判定ボタン -->
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="app.recordResult('correct')" class="py-6 bg-slate-900 text-white rounded-xl text-4xl font-bold hover:bg-slate-800 active:bg-slate-950 border-2 border-slate-900 shadow transition flex items-center justify-center">
+                        <span>〇</span>
+                    </button>
+                    <button onclick="app.recordResult('incorrect')" class="py-6 bg-white text-slate-900 rounded-xl text-4xl font-bold hover:bg-slate-100 active:bg-slate-200 border-2 border-slate-800 shadow transition flex items-center justify-center">
+                        <span>☆</span>
+                    </button>
+                </div>
+
+                <!-- ナビゲーション補助ボタン -->
+                <div class="flex justify-between items-center pt-2">
+                    <button id="btn-prev-stimulus" onclick="app.navigateStimulus(-1)" class="px-4 py-2 bg-slate-200 text-slate-700 text-sm font-medium rounded hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed">
+                        ← 前の刺激に戻る
+                    </button>
+                    <button onclick="app.recordResult('unanswered')" class="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-medium rounded hover:bg-slate-200 border border-slate-300">
+                        未判定のまま次へ (スキップ)
+                    </button>
+                    <button onclick="app.pauseSession()" class="px-4 py-2 bg-slate-600 text-white text-sm font-medium rounded hover:bg-slate-700">
+                        一時停止・一覧へ
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-results" class="hidden no-print space-y-6">
+            <!-- 集計サマリー -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-start border-b pb-4 mb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">検査結果サマリー</h2>
+                        <p class="text-sm text-slate-500" id="result-meta-info"></p>
+                    </div>
+                    <div class="space-x-2">
+                        <button onclick="window.print()" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-800 transition">PDF出力 (印刷)</button>
+                        <button onclick="app.downloadCSV()" class="px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded hover:bg-slate-700 transition">CSVダウンロード</button>
+                    </div>
+                </div>
+
+                <!-- 数値集計グリッド -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                    <div class="p-3 bg-slate-50 rounded border text-center">
+                        <div class="text-xs text-slate-500">総刺激数</div>
+                        <div class="text-xl font-bold text-slate-800">102</div>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded border text-center">
+                        <div class="text-xs text-slate-500">正答数</div>
+                        <div id="stat-correct" class="text-xl font-bold text-slate-800">0</div>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded border text-center">
+                        <div class="text-xs text-slate-500">誤答数</div>
+                        <div id="stat-incorrect" class="text-xl font-bold text-slate-800">0</div>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded border text-center">
+                        <div class="text-xs text-slate-500">未判定数</div>
+                        <div id="stat-unanswered" class="text-xl font-bold text-slate-800">0</div>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded border text-center col-span-2 md:col-span-1">
+                        <div class="text-xs text-slate-500">正答率</div>
+                        <div id="stat-rate-total" class="text-xl font-bold text-slate-800">0%</div>
+                    </div>
+                </div>
+
+                <!-- 注記表示 -->
+                <p class="text-xs text-slate-500 bg-slate-100 p-2.5 rounded border border-slate-200">
+                    ※ 本集計値は本アプリ独自の算出値（正答数 / 102）であり、標準化検査の公式得点ではありません。
+                </p>
+            </div>
+
+            <!-- 提示順記録一覧 -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-md font-bold text-slate-800 mb-3">提示順データ一覧</h3>
+                <div class="overflow-y-auto max-h-96 border rounded">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="sticky top-0 bg-slate-100 border-b">
+                            <tr>
+                                <th class="p-2 border-r">提示順</th>
+                                <th class="p-2 border-r">刺激文字</th>
+                                <th class="p-2 border-r">分類</th>
+                                <th class="p-2 border-r">判定結果</th>
+                                <th class="p-2 border-r">元の順番</th>
+                                <th class="p-2">呈示してからの秒数</th>
+                            </tr>
+                        </thead>
+                        <tbody id="result-table-body" class="divide-y">
+                            <!-- JSで動的表示 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="print-area" class="print-only">
+        <!-- ページ 1: 清音（あ行〜わ行） -->
+        <div class="print-page flex flex-col justify-between">
+            <div>
+                <div class="border-b-2 border-slate-800 pb-2 mb-3 flex justify-between items-end">
+                    <div>
+                        <h1 class="text-lg font-bold">音読正確性評価 記録用紙 (1/3) : 清音</h1>
+                        <p class="text-xs text-slate-600" id="print-header-meta-1"></p>
+                    </div>
+                    <div class="text-xs text-slate-700 text-right" id="print-stats-1"></div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-bold text-xs mb-1">【あ行〜な行】</h3>
+                        <div id="print-table-seion1" class="w-full"></div>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-xs mb-1">【は行〜わ行】</h3>
+                        <div id="print-table-seion2" class="w-full"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-xs text-right text-slate-500 pt-1 border-t border-slate-300">
+                1/3 Page 1: 清音
+            </div>
+        </div>
+
+        <!-- ページ 2: 濁音・半濁音 -->
+        <div class="print-page flex flex-col justify-between">
+            <div>
+                <div class="border-b-2 border-slate-800 pb-2 mb-3 flex justify-between items-end">
+                    <div>
+                        <h1 class="text-lg font-bold">音読正確性評価 記録用紙 (2/3) : 濁音・半濁音</h1>
+                        <p class="text-xs text-slate-600" id="print-header-meta-2"></p>
+                    </div>
+                    <div class="text-xs text-slate-700 text-right" id="print-stats-2"></div>
+                </div>
+                <div id="print-table-dakuon-handakuon" class="w-full"></div>
+            </div>
+            <div class="text-xs text-right text-slate-500 pt-1 border-t border-slate-300">
+                2/3 Page 2: 濁音・半濁音
+            </div>
+        </div>
+
+        <!-- ページ 3: 拗音 -->
+        <div class="print-page flex flex-col justify-between">
+            <div>
+                <div class="border-b-2 border-slate-800 pb-2 mb-3 flex justify-between items-end">
+                    <div>
+                        <h1 class="text-lg font-bold">音読正確性評価 記録用紙 (3/3) : 拗音</h1>
+                        <p class="text-xs text-slate-600" id="print-header-meta-3"></p>
+                    </div>
+                    <div class="text-xs text-slate-700 text-right" id="print-stats-3"></div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-bold text-xs mb-1">【拗音（清音）】</h3>
+                        <div id="print-table-youon-seion"></div>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-xs mb-1">【拗音（濁音・半濁音）】</h3>
+                        <div id="print-table-youon-dakuon-handakuon"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-xs text-right text-slate-500 pt-1 border-t border-slate-300">
+                3/3 Page 3: 拗音
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 固定刺激データ（102項目）
+         */
+        const FIXED_STIMULI = [
+            "ご", "み", "ち", "を", "ろ", "に", "き", "い", "ゆ", "ひ",
+            "り", "し", "れ", "ぴ", "そ", "ぞ", "びゅ", "の", "びゃ", "と",
+            "こ", "ほ", "お", "きゃ", "だ", "じゃ", "にゅ", "ぴゃ", "ぴゅ", "みゃ",
+            "も", "ぱ", "ざ", "しゃ", "が", "や", "か", "な", "ぎょ", "べ",
+            "ぴょ", "りょ", "にょ", "ら", "さ", "は", "ぐ", "きょ", "ず", "ぶ",
+            "みょ", "ぷ", "びょ", "ちょ", "ど", "ね", "しゅ", "す", "る", "ふ",
+            "よ", "う", "く", "ぬ", "しょ", "ん", "つ", "む", "じょ", "ひゃ",
+            "にゃ", "ひゅ", "りゃ", "せ", "ぼ", "め", "て", "ぜ", "け", "へ",
+            "ぎゃ", "え", "げ", "ちゃ", "ば", "た", "わ", "じゅ", "ぎ", "ま",
+            "きゅ", "じ", "ちゅ", "び", "ぎゅ", "ぽ", "で", "ぺ", "ひょ", "みゅ",
+            "りゅ", "あ"
+        ];
+
+        /**
+         * カテゴリ分類ロジック
+         */
+        function classifyStimulus(char) {
+            if (char.length === 2) {
+                const first = char[0];
+                if (first === 'ぴ') {
+                    return '拗音（半濁音）';
+                }
+                if (['ぎ', 'じ', 'ぢ', 'び'].includes(first)) {
+                    return '拗音（濁音）';
+                }
+                return '拗音（清音）';
+            }
+            if (['ぱ', 'ぴ', 'ぷ', 'ぺ', 'ぽ'].includes(char)) {
+                return '半濁音';
+            }
+            if (['が','ぎ','ぐ','げ','ご','ざ','じ','ず','ぜ','ぞ','だ','ぢ','づ','で','ど','ば','び','ぶ','べ','ぼ'].includes(char)) {
+                return '濁音';
+            }
+            return '清音';
+        }
+
+        /**
+         * Fisher-Yates シャッフル
+         */
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        class ReadingApp {
+            constructor() {
+                this.storageKey = 'reading_assessment_sessions_v2';
+                this.sessions = this.loadSessions();
+                this.currentSession = null;
+                this.currentStimulusIndex = 0;
+                this.stimulusStartTime = null;
+
+                this.validateStimuliData();
+            }
+
+            validateStimuliData() {
+                if (!Array.isArray(FIXED_STIMULI) || FIXED_STIMULI.length !== 102) {
+                    this.showFatalError(`刺激データが正しく構成されていません。期待値: 102項目, 実際: ${FIXED_STIMULI.length}項目`);
+                    return false;
+                }
+                return true;
+            }
+
+            showFatalError(msg) {
+                const banner = document.getElementById('error-banner');
+                const message = document.getElementById('error-message');
+                message.textContent = msg;
+                banner.classList.remove('hidden');
+            }
+
+            loadSessions() {
+                try {
+                    const raw = localStorage.getItem(this.storageKey);
+                    return raw ? JSON.parse(raw) : [];
+                } catch (e) {
+                    console.error('Failed to load sessions from localStorage', e);
+                    return [];
+                }
+            }
+
+            saveSessions() {
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(this.sessions));
+                } catch (e) {
+                    console.error('Failed to save sessions to localStorage', e);
+                }
+            }
+
+            init() {
+                const dateInput = document.getElementById('input-test-date');
+                if (dateInput) {
+                    dateInput.value = new Date().toISOString().split('T')[0];
+                }
+                this.showDashboard();
+            }
+
+            showDashboard() {
+                this.hideAllViews();
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                this.renderSessionList();
+            }
+
+            hideAllViews() {
+                document.getElementById('view-dashboard').classList.add('hidden');
+                document.getElementById('view-testing').classList.add('hidden');
+                document.getElementById('view-results').classList.add('hidden');
+            }
+
+            renderSessionList() {
+                const tbody = document.getElementById('session-list-body');
+                tbody.innerHTML = '';
+
+                if (this.sessions.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-400">実施記録がありません。上のフォームから検査を開始してください。</td></tr>`;
+                    return;
+                }
+
+                const sorted = [...this.sessions].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+
+                sorted.forEach(session => {
+                    const judgedCount = session.records.filter(r => r.result !== 'unanswered').length;
+                    const isCompleted = judgedCount === 102;
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 transition';
+                    tr.innerHTML = `
+                        <td class="p-3 font-mono text-xs">${session.sessionId.substring(0, 8)}...</td>
+                        <td class="p-3 font-semibold">${this.escapeHtml(session.examineeId)}</td>
+                        <td class="p-3 text-xs text-slate-600">${this.escapeHtml(session.ageGroup || '-')}</td>
+                        <td class="p-3 text-xs text-slate-600">${this.escapeHtml(session.sessionTag || '-')}</td>
+                        <td class="p-3">${session.testDate}</td>
+                        <td class="p-3">${this.escapeHtml(session.examiner)}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded text-xs ${isCompleted ? 'bg-slate-100 text-slate-800 font-semibold' : 'bg-slate-100 text-slate-600'}">
+                                ${judgedCount} / 102 判定済み
+                            </span>
+                        </td>
+                        <td class="p-3 text-right space-x-1">
+                            <button onclick="app.resumeSession('${session.sessionId}')" class="px-2.5 py-1 text-xs bg-slate-900 text-white rounded hover:bg-slate-800">
+                                ${isCompleted ? '判定修正・再開' : '検査を再開'}
+                            </button>
+                            <button onclick="app.viewResults('${session.sessionId}')" class="px-2.5 py-1 text-xs bg-slate-700 text-white rounded hover:bg-slate-600">
+                                集計・出力
+                            </button>
+                            <button onclick="app.deleteSession('${session.sessionId}')" class="px-2.5 py-1 text-xs bg-white text-slate-500 border border-slate-300 rounded hover:bg-slate-100">
+                                削除
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            startNewSession(event) {
+                event.preventDefault();
+                if (!this.validateStimuliData()) return;
+
+                const examineeId = document.getElementById('input-examinee-id').value.trim();
+                const ageGroup = document.getElementById('input-age-group').value;
+                const sessionTag = document.getElementById('input-session-tag').value;
+                const testDate = document.getElementById('input-test-date').value;
+                const examiner = document.getElementById('input-examiner').value.trim();
+
+                const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+                const indices = Array.from({ length: 102 }, (_, i) => i);
+                const presentationOrder = shuffleArray(indices);
+
+                const records = presentationOrder.map((origIdx, presIdx) => {
+                    const char = FIXED_STIMULI[origIdx];
+                    return {
+                        stimulusId: origIdx + 1,
+                        originalOrder: origIdx + 1,
+                        presentationOrder: presIdx + 1,
+                        character: char,
+                        category: classifyStimulus(char),
+                        result: 'unanswered',
+                        responseTimeSec: null,
+                        judgedAt: null
+                    };
+                });
+
+                const newSession = {
+                    sessionId,
+                    examineeId,
+                    ageGroup,
+                    sessionTag,
+                    testDate,
+                    examiner,
+                    stimulusVersion: '1.0.0',
+                    startedAt: new Date().toISOString(),
+                    completedAt: null,
+                    records
+                };
+
+                this.sessions.push(newSession);
+                this.saveSessions();
+                this.currentSession = newSession;
+                this.currentStimulusIndex = 0;
+
+                this.startTestingView();
+            }
+
+            resumeSession(sessionId) {
+                const session = this.sessions.find(s => s.sessionId === sessionId);
+                if (!session) return;
+
+                this.currentSession = session;
+                const firstUnanswered = session.records.findIndex(r => r.result === 'unanswered');
+                this.currentStimulusIndex = firstUnanswered !== -1 ? firstUnanswered : 0;
+
+                this.startTestingView();
+            }
+
+            startTestingView() {
+                this.hideAllViews();
+                document.getElementById('view-testing').classList.remove('hidden');
+
+                document.getElementById('test-info-examinee').textContent = `${this.currentSession.examineeId} (${this.currentSession.sessionTag || '区分なし'})`;
+                document.getElementById('test-info-date').textContent = this.currentSession.testDate;
+
+                this.updateStimulusDisplay();
+            }
+
+            updateStimulusDisplay() {
+                const record = this.currentSession.records[this.currentStimulusIndex];
+                document.getElementById('test-info-index').textContent = this.currentStimulusIndex + 1;
+                document.getElementById('test-stimulus-display').textContent = record.character;
+
+                this.stimulusStartTime = performance.now();
+
+                const btnPrev = document.getElementById('btn-prev-stimulus');
+                btnPrev.disabled = this.currentStimulusIndex === 0;
+            }
+
+            recordResult(resultType) {
+                if (!this.currentSession) return;
+
+                const record = this.currentSession.records[this.currentStimulusIndex];
+                record.result = resultType;
+                record.judgedAt = new Date().toISOString();
+
+                if (this.stimulusStartTime) {
+                    const elapsedMs = performance.now() - this.stimulusStartTime;
+                    record.responseTimeSec = (elapsedMs / 1000).toFixed(1);
+                } else {
+                    record.responseTimeSec = null;
+                }
+
+                this.saveSessions();
+
+                if (this.currentStimulusIndex < 101) {
+                    this.currentStimulusIndex++;
+                    this.updateStimulusDisplay();
+                } else {
+                    this.currentSession.completedAt = new Date().toISOString();
+                    this.saveSessions();
+                    this.viewResults(this.currentSession.sessionId);
+                }
+            }
+
+            navigateStimulus(delta) {
+                const newIdx = this.currentStimulusIndex + delta;
+                if (newIdx >= 0 && newIdx < 102) {
+                    this.currentStimulusIndex = newIdx;
+                    this.updateStimulusDisplay();
+                }
+            }
+
+            pauseSession() {
+                this.saveSessions();
+                this.showDashboard();
+            }
+
+            calculateStats(records) {
+                const correctCount = records.filter(r => r.result === 'correct').length;
+                const incorrectCount = records.filter(r => r.result === 'incorrect').length;
+                const unansweredCount = records.filter(r => r.result === 'unanswered').length;
+
+                const rateTotal = ((correctCount / 102) * 100).toFixed(1);
+
+                return {
+                    correctCount,
+                    incorrectCount,
+                    unansweredCount,
+                    rateTotal
+                };
+            }
+
+            viewResults(sessionId) {
+                const session = this.sessions.find(s => s.sessionId === sessionId);
+                if (!session) return;
+
+                this.currentSession = session;
+                this.hideAllViews();
+                document.getElementById('view-results').classList.remove('hidden');
+
+                const stats = this.calculateStats(session.records);
+
+                document.getElementById('result-meta-info').textContent = 
+                    `匿名対象ID: ${session.examineeId} | 区分: ${session.sessionTag || 'なし'} | 検査日: ${session.testDate} | 検査者ID: ${session.examiner}`;
+
+                document.getElementById('stat-correct').textContent = stats.correctCount;
+                document.getElementById('stat-incorrect').textContent = stats.incorrectCount;
+                document.getElementById('stat-unanswered').textContent = stats.unansweredCount;
+                document.getElementById('stat-rate-total').textContent = `${stats.rateTotal}%`;
+
+                const tbody = document.getElementById('result-table-body');
+                tbody.innerHTML = '';
+
+                session.records.forEach(r => {
+                    const tr = document.createElement('tr');
+                    let resLabel = '-';
+                    if (r.result === 'correct') resLabel = '〇';
+                    if (r.result === 'incorrect') resLabel = '✕';
+
+                    const timeDisplay = r.responseTimeSec ? `${r.responseTimeSec}秒` : '-';
+
+                    tr.innerHTML = `
+                        <td class="p-2 border-r text-center">${r.presentationOrder}</td>
+                        <td class="p-2 border-r font-bold text-base text-center">${r.character}</td>
+                        <td class="p-2 border-r text-xs text-slate-600">${r.category}</td>
+                        <td class="p-2 border-r font-bold text-center ${r.result === 'correct' ? 'text-slate-900' : (r.result === 'incorrect' ? 'text-slate-900' : 'text-slate-400')}">${resLabel}</td>
+                        <td class="p-2 border-r text-center text-slate-500">${r.originalOrder}</td>
+                        <td class="p-2 text-center text-sm font-mono text-slate-700">${timeDisplay}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                this.preparePrintLayout(session, stats);
+            }
+
+            preparePrintLayout(session, stats) {
+                const metaStr = `匿名対象ID: ${session.examineeId} (${session.sessionTag || '区分なし'}) | 検査日: ${session.testDate} | 検査者ID: ${session.examiner}`;
+                const statsStr = `正答数: ${stats.correctCount} / 誤答数: ${stats.incorrectCount} / 未判定: ${stats.unansweredCount} (正答率: ${stats.rateTotal}%)`;
+
+                for (let i = 1; i <= 3; i++) {
+                    const metaElem = document.getElementById(`print-header-meta-${i}`);
+                    const statsElem = document.getElementById(`print-stats-${i}`);
+                    if (metaElem) metaElem.textContent = metaStr;
+                    if (statsElem) statsElem.textContent = statsStr;
+                }
+
+                const buildFiftyOnTable = (columnsList, records, colHeaders = []) => {
+                    if (!columnsList || columnsList.length === 0) return '<p class="text-xs text-slate-400">該当なし</p>';
+
+                    const recordMap = new Map();
+                    records.forEach(r => recordMap.set(r.character, r));
+
+                    let maxRows = 0;
+                    columnsList.forEach(col => {
+                        if (col.length > maxRows) maxRows = col.length;
+                    });
+
+                    let html = '<table class="print-table"><thead><tr>';
+                    for (let c = 0; c < columnsList.length; c++) {
+                        const headerText = colHeaders[c] || `列${c+1}`;
+                        html += `<th colspan="2">${headerText}</th>`;
+                    }
+                    html += '</tr><tr>';
+                    for (let c = 0; c < columnsList.length; c++) {
+                        html += '<th class="w-1/2">文字</th><th class="w-1/2">判定</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+
+                    for (let r = 0; r < maxRows; r++) {
+                        html += '<tr>';
+                        for (let c = 0; c < columnsList.length; c++) {
+                            const char = columnsList[c][r] || '';
+                            if (char) {
+                                const rec = recordMap.get(char);
+                                const mark = (rec && rec.result === 'correct') ? '〇' : '';
+                                html += `<td class="char-cell">${char}</td><td class="mark-cell">${mark}</td>`;
+                            } else {
+                                html += '<td class="empty-cell"></td><td class="empty-cell"></td>';
+                            }
+                        }
+                        html += '</tr>';
+                    }
+                    html += '</tbody></table>';
+                    return html;
+                };
+
+                const seion1Cols = [
+                    ["あ", "い", "う", "え", "お"],
+                    ["か", "き", "く", "け", "こ"],
+                    ["さ", "し", "す", "せ", "そ"],
+                    ["た", "ち", "つ", "て", "と"],
+                    ["な", "に", "ぬ", "ね", "の"]
+                ];
+                const seion1Headers = ["あ行", "か行", "さ行", "た行", "な行"];
+
+                const seion2Cols = [
+                    ["は", "ひ", "ふ", "へ", "ほ"],
+                    ["ま", "み", "む", "め", "も"],
+                    ["や", "", "ゆ", "", "よ"],
+                    ["ら", "り", "る", "れ", "ろ"],
+                    ["わ", "", "を", "", "ん"]
+                ];
+                const seion2Headers = ["は行", "ま行", "や行", "ら行", "わ行"];
+
+                const dakuonHandakuonCols = [
+                    ["が", "ぎ", "ぐ", "げ", "ご"],
+                    ["ざ", "じ", "ず", "ぜ", "ぞ"],
+                    ["だ", "ぢ", "づ", "で", "ど"],
+                    ["ば", "び", "ぶ", "べ", "ぼ"],
+                    ["ぱ", "ぴ", "ぷ", "ぺ", "ぽ"]
+                ];
+                const dakuonHandakuonHeaders = ["が行", "ざ行", "だ行", "ば行", "ぱ行"];
+
+                const youonSeionCols = [
+                    ["きゃ", "きゅ", "きょ"],
+                    ["しゃ", "しゅ", "しょ"],
+                    ["ちゃ", "ちゅ", "ちょ"],
+                    ["にゃ", "にゅ", "にょ"],
+                    ["ひゃ", "ひゅ", "ひょ"],
+                    ["みゃ", "みゅ", "みょ"],
+                    ["りゃ", "りゅ", "りょ"]
+                ];
+                const youonSeionHeaders = ["きゃ行", "しゃ行", "ちゃ行", "にゃ行", "ひゃ行", "みゃ行", "りゃ行"];
+
+                const youonDakuonHandakuonCols = [
+                    ["ぎゃ", "ぎゅ", "ぎょ"],
+                    ["じゃ", "じゅ", "じょ"],
+                    ["びゃ", "びゅ", "びょ"],
+                    ["ぴゃ", "ぴゅ", "ぴょ"]
+                ];
+                const youonDakuonHandakuonHeaders = ["ぎゃ行", "じゃ行", "びゃ行", "ぴゃ行"];
+
+                document.getElementById('print-table-seion1').innerHTML = buildFiftyOnTable(seion1Cols, session.records, seion1Headers);
+                document.getElementById('print-table-seion2').innerHTML = buildFiftyOnTable(seion2Cols, session.records, seion2Headers);
+                document.getElementById('print-table-dakuon-handakuon').innerHTML = buildFiftyOnTable(dakuonHandakuonCols, session.records, dakuonHandakuonHeaders);
+                document.getElementById('print-table-youon-seion').innerHTML = buildFiftyOnTable(youonSeionCols, session.records, youonSeionHeaders);
+                document.getElementById('print-table-youon-dakuon-handakuon').innerHTML = buildFiftyOnTable(youonDakuonHandakuonCols, session.records, youonDakuonHandakuonHeaders);
+            }
+
+            downloadCSV() {
+                if (!this.currentSession) return;
+
+                const session = this.currentSession;
+                let csvContent = '\uFEFF';
+
+                csvContent += '検査実施ID,匿名対象者ID,年代,評価区分,検査日,検査者ID,刺激ID,元の順番,実際の提示順,刺激文字,刺激分類,判定結果,呈示してからの秒数,判定日時\n';
+
+                session.records.forEach(r => {
+                    let resultMark = '';
+                    if (r.result === 'correct') resultMark = '〇';
+                    if (r.result === 'incorrect') resultMark = '☆';
+
+                    const row = [
+                        session.sessionId,
+                        session.examineeId,
+                        session.ageGroup || '',
+                        session.sessionTag || '',
+                        session.testDate,
+                        session.examiner,
+                        r.stimulusId,
+                        r.originalOrder,
+                        r.presentationOrder,
+                        r.character,
+                        r.category,
+                        resultMark,
+                        r.responseTimeSec || '',
+                        r.judgedAt || ''
+                    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(',');
+
+                    csvContent += row + '\n';
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `音読検査結果_${session.examineeId}_${session.testDate}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            exportAllJSON() {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.sessions, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `reading_assessment_backup_${new Date().toISOString().split('T')[0]}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            }
+
+            importJSON(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        if (Array.isArray(imported)) {
+                            this.sessions = imported;
+                            this.saveSessions();
+                            this.renderSessionList();
+                            alert('データを正常に復元しました。');
+                        } else {
+                            alert('JSONフォーマットが正しくありません。');
+                        }
+                    } catch (err) {
+                        alert('JSONファイルの読み込みに失敗しました。');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            deleteSession(sessionId) {
+                if (confirm('この検査記録を削除してもよろしいですか？')) {
+                    this.sessions = this.sessions.filter(s => s.sessionId === sessionId);
+                    this.saveSessions();
+                    this.renderSessionList();
+                }
+            }
+
+            escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+        }
+
+        let app;
+        window.onload = () => {
+            app = new ReadingApp();
+            app.init();
+        };
+    </script>
+</body>
+</html>
