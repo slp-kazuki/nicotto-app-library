@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小数の組み立て工場 - 算数学習支援教材</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-color: #f0fdf4;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .block-01 {
+            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .block-01:hover {
+            transform: scale(1.05);
+        }
+
+        .container-1L {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border: 3px solid #0284c7;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+
+        .container-1cm {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 3px solid #d97706;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+
+        /* 10個合体時のアニメーション */
+        @keyframes combineFlash {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.08); filter: brightness(1.4); box-shadow: 0 0 20px #f59e0b; }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        .anim-combine {
+            animation: combineFlash 0.6s ease-in-out;
+        }
+
+        /* 10等分マスのハイライト＆着色スタイル */
+        .cell-filled {
+            background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+            border: 1px solid #0369a1;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.6), 0 0 6px rgba(56, 189, 248, 0.4);
+            color: #ffffff;
+            font-weight: 900;
+            transition: all 0.3s ease;
+        }
+
+        .cell-filled-len {
+            background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+            border: 1px solid #b45309;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.6), 0 0 6px rgba(251, 191, 36, 0.4);
+            color: #ffffff;
+            font-weight: 900;
+            transition: all 0.3s ease;
+        }
+
+        .cell-empty {
+            background-color: rgba(241, 245, 249, 0.7);
+            border: 1px dashed #cbd5e1;
+            color: #94a3b8;
+        }
+
+        /* 最後に着色されたマスのパルスハイライト */
+        .cell-latest {
+            animation: pulseHighlight 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 10;
+        }
+
+        @keyframes pulseHighlight {
+            0% { transform: scale(1.25); filter: brightness(1.4); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- ヘッダーナビゲーション -->
+    <header class="bg-emerald-600 text-white shadow-md p-3 sm:p-4 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl" id="header-icon">🏭</span>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-black tracking-wide">小数の組み立て工場</h1>
+                    <p class="text-xs text-emerald-100" id="header-sub">0.1のぶひんをあつめて、いろんな大きさをつくろう！</p>
+                </div>
+            </div>
+            
+            <!-- モード切り替えタブ -->
+            <div class="flex bg-emerald-700/60 p-1 rounded-xl text-xs sm:text-sm font-bold w-full sm:w-auto justify-center flex-wrap gap-1">
+                <button id="nav-explore" onclick="switchMode('explore')" class="px-3 py-1.5 rounded-lg bg-white text-emerald-800 shadow transition-all">
+                    🧪 たんけん工場
+                </button>
+                <button id="nav-step" onclick="switchMode('step')" class="px-3 py-1.5 rounded-lg text-white hover:bg-emerald-600 transition-all">
+                    🐾 ステップ学習
+                </button>
+                <button id="nav-drill" onclick="switchMode('drill')" class="px-3 py-1.5 rounded-lg text-white hover:bg-emerald-600 transition-all">
+                    🎯 もんだいに挑戦
+                </button>
+                <button id="nav-teacher" onclick="switchMode('teacher')" class="px-3 py-1.5 rounded-lg text-amber-200 hover:bg-emerald-600 transition-all">
+                    📊 しえんきろく
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 flex flex-col gap-4">
+
+        <!-- AIロボットの声かけナビパネル ＆ 単位選択スイッチ -->
+        <div class="bg-white border-2 border-emerald-300 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row items-center gap-3 relative overflow-hidden">
+            <div class="flex items-center gap-3 w-full sm:w-auto flex-1">
+                <div class="bg-emerald-100 text-2xl p-2 rounded-xl flex-shrink-0">🤖</div>
+                <div class="flex-1">
+                    <div class="text-xs font-bold text-emerald-600 mb-0.5" id="ai-title">ナビロボット</div>
+                    <div class="text-sm sm:text-base font-bold text-slate-700 leading-snug" id="ai-message">
+                        「＋0.1」ボタンをおして、0.1をあつめてみよう！
+                    </div>
+                </div>
+            </div>
+
+            <!-- 単位モード切替スイッチ ＆ 音声トグル -->
+            <div class="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
+                <div class="bg-slate-100 p-1 rounded-xl border border-slate-300 flex text-xs font-bold">
+                    <button id="unit-vol-btn" onclick="setUnitMode('volume')" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white shadow">
+                        🥛 かさ (L / dL)
+                    </button>
+                    <button id="unit-len-btn" onclick="setUnitMode('length')" class="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200">
+                        📏 ながさ (cm / mm)
+                    </button>
+                </div>
+                <button onclick="toggleAudio()" id="audio-btn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-2.5 py-1 rounded-lg border border-slate-300 flex items-center gap-1">
+                    🔊 おと: ON
+                </button>
+            </div>
+        </div>
+
+        <!-- 領域A~Dを網羅するメイン学習画面（たんけん工場） -->
+        <div id="view-explore" class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            <!-- 左カラム：操作パネル ＆ A. 量のモデル (8カラム) -->
+            <div class="lg:col-span-7 flex flex-col gap-4">
+                
+                <!-- 操作ボタンエリア (多様な数値設定対応) -->
+                <div class="bg-white p-4 rounded-2xl border-2 border-amber-200 shadow-sm flex flex-col gap-3">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <span class="font-black text-amber-800 text-sm sm:text-base flex items-center gap-1">
+                            🛠️ ぶひんの操作（そうさ）
+                        </span>
+                        <!-- クイック例選択ボタン（3.6などを追加） -->
+                        <div class="flex gap-1.5 flex-wrap">
+                            <button onclick="setExample(1.9)" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-2 py-1 rounded-lg border border-amber-300">
+                                例: 1.9
+                            </button>
+                            <button onclick="setExample(3.6)" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-2 py-1 rounded-lg border border-amber-300">
+                                例: 3.6
+                            </button>
+                            <button onclick="setExample(5.3)" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-2 py-1 rounded-lg border border-amber-300">
+                                例: 5.3
+                            </button>
+                            <button onclick="setExample(7.8)" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-2 py-1 rounded-lg border border-amber-300">
+                                例: 7.8
+                            </button>
+                            <button onclick="resetValue()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-2 py-1 rounded-lg border border-slate-300">
+                                ↺ リセット
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- メイン操作ボタン群 -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button onclick="addValue(0.1)" id="btn-add-01" class="bg-gradient-to-b from-sky-400 to-sky-600 active:from-sky-500 active:to-sky-700 text-white font-black py-3 px-2 rounded-xl shadow-md text-base sm:text-lg border-b-4 border-sky-800 hover:brightness-105 active:border-b-0 active:translate-y-1 transition-all">
+                            ＋ 0.1L
+                        </button>
+                        <button onclick="addValue(-0.1)" id="btn-sub-01" class="bg-gradient-to-b from-slate-400 to-slate-600 active:from-slate-500 active:to-slate-700 text-white font-black py-3 px-2 rounded-xl shadow-md text-base sm:text-lg border-b-4 border-slate-800 hover:brightness-105 active:border-b-0 active:translate-y-1 transition-all">
+                            － 0.1L
+                        </button>
+                        <button onclick="addValue(1.0)" id="btn-add-10" class="bg-gradient-to-b from-emerald-500 to-emerald-700 active:from-emerald-600 active:to-emerald-800 text-white font-black py-3 px-2 rounded-xl shadow-md text-base sm:text-lg border-b-4 border-emerald-900 hover:brightness-105 active:border-b-0 active:translate-y-1 transition-all">
+                            ＋ 1.0L
+                        </button>
+                        <button onclick="addValue(-1.0)" id="btn-sub-10" class="bg-gradient-to-b from-slate-400 to-slate-600 active:from-slate-500 active:to-slate-700 text-white font-black py-3 px-2 rounded-xl shadow-md text-base sm:text-lg border-b-4 border-slate-800 hover:brightness-105 active:border-b-0 active:translate-y-1 transition-all">
+                            － 1.0L
+                        </button>
+                    </div>
+
+                    <!-- 自由数値スライダー操作 -->
+                    <div class="flex items-center gap-3 pt-1 border-t border-slate-100 text-xs font-bold text-slate-600">
+                        <span>じゆうにスライド:</span>
+                        <input type="range" id="value-slider" min="0" max="9.9" step="0.1" value="1.9" oninput="onSliderChange(this.value)" class="flex-1 accent-emerald-600">
+                        <span id="slider-val-disp" class="font-black text-emerald-800 text-sm">1.9</span>
+                    </div>
+                </div>
+
+                <!-- A. 量・長さのモデル (Visual Block Area) -->
+                <div class="bg-white p-4 rounded-2xl border-2 border-slate-200 shadow-sm flex flex-col gap-3 min-h-[280px]">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <span class="font-black text-slate-700 flex items-center gap-1" id="model-section-title">
+                            🥛 A. 量（かさ）のモデル（ブロック）
+                        </span>
+                        <div class="flex items-center gap-2 text-xs font-bold text-slate-600">
+                            <label class="flex items-center gap-1 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                <input type="checkbox" id="sub-unit-toggle" onchange="renderAll()" class="rounded text-emerald-600">
+                                <span id="sub-unit-toggle-label">dL ひょうじ</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- ブロック配置エリア -->
+                    <div id="volume-blocks-container" class="flex flex-wrap gap-3 items-end p-2 min-h-[200px] max-h-[380px] overflow-y-auto bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                        <!-- JSで動的にブロックを挿入 -->
+                    </div>
+
+                    <div class="text-xs text-slate-500 flex justify-between items-center flex-wrap gap-1">
+                        <span id="block-hint-text">💡 0.1Lが10個あつまると1Lのタンクにまとまります！</span>
+                        <span id="unit-hint" class="font-bold text-emerald-700">1L ＝ 10dL ＝ 0.1L×10</span>
+                    </div>
+                </div>
+
+                <!-- C. 数直線エリア -->
+                <div class="bg-white p-4 rounded-2xl border-2 border-slate-200 shadow-sm flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <span class="font-black text-slate-700">📏 C. すうちょくせん（0.1刻み）</span>
+                        <span class="text-xs bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full" id="number-line-val">1.9L</span>
+                    </div>
+                    
+                    <!-- SVG 数直線 -->
+                    <div class="w-full overflow-x-auto py-2">
+                        <svg id="number-line-svg" class="w-full min-w-[600px]" height="90" viewBox="0 0 620 90">
+                            <!-- JSで描画 -->
+                        </svg>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 右カラム：B. 0.1の個数 & D. 数字・式 (5カラム) -->
+            <div class="lg:col-span-5 flex flex-col gap-4">
+                
+                <!-- D. 数字・式 表示パネル -->
+                <div class="bg-gradient-to-br from-indigo-50 to-blue-50 p-4 rounded-2xl border-2 border-indigo-200 shadow-sm flex flex-col gap-3">
+                    <div class="flex justify-between items-center border-b border-indigo-100 pb-2">
+                        <span class="font-black text-indigo-900">✏️ D. すうじ と しき</span>
+                        <span class="text-xs text-indigo-600 font-bold">おなじ大きさのあらわしかた</span>
+                    </div>
+
+                    <!-- メイン数値巨大表示 -->
+                    <div class="text-center bg-white p-4 rounded-xl border-2 border-indigo-300 shadow-inner">
+                        <div class="text-xs text-indigo-500 font-bold mb-1" id="display-label-main">いまのかさ</div>
+                        <div class="text-4xl sm:text-5xl font-black text-indigo-700 tracking-wider" id="display-main-num">
+                            1.9 <span class="text-2xl text-indigo-500">L</span>
+                        </div>
+                        <div class="text-sm font-bold text-slate-500 mt-1" id="display-dl-alt">
+                            ( 19 dL )
+                        </div>
+                    </div>
+
+                    <!-- 式の分解表現リスト -->
+                    <div class="space-y-2 text-sm font-bold">
+                        <div class="bg-white p-2.5 rounded-lg border border-indigo-100 flex justify-between items-center">
+                            <span class="text-slate-500" id="expr-label-1">① 1L と あと何L？:</span>
+                            <span class="text-indigo-900 font-black text-base" id="expr-split-l">1L ＋ 0.9L</span>
+                        </div>
+                        <div class="bg-white p-2.5 rounded-lg border border-indigo-100 flex justify-between items-center">
+                            <span class="text-slate-500" id="expr-label-2">② dLに直すと？:</span>
+                            <span class="text-indigo-900 font-black text-base" id="expr-split-dl">10dL ＋ 9dL ＝ 19dL</span>
+                        </div>
+                        <div class="bg-white p-2.5 rounded-lg border border-indigo-100 flex justify-between items-center bg-amber-50/60 border-amber-200">
+                            <span class="text-amber-800" id="expr-label-3">③ 0.1Lのかけ算:</span>
+                            <span class="text-amber-900 font-black text-base" id="expr-multi">0.1L × 19</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- B. 0.1の個数 パネル -->
+                <div class="bg-white p-4 rounded-2xl border-2 border-emerald-200 shadow-sm flex flex-col gap-3">
+                    <div class="flex justify-between items-center">
+                        <span class="font-black text-emerald-900" id="count-title-text">🧩 B. 0.1L の こすう</span>
+                        <button onclick="toggleCountMask()" id="mask-btn" class="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg">
+                            👁️ かくす / みせる
+                        </button>
+                    </div>
+
+                    <div class="p-4 bg-emerald-50/80 rounded-xl border border-emerald-200 text-center relative" id="count-box">
+                        <div id="count-text-content">
+                            <span class="text-xs text-emerald-700 font-bold block mb-1" id="count-sub-label">0.1Lがぜんぶで...</span>
+                            <span class="text-3xl font-black text-emerald-800" id="display-01-count">19</span>
+                            <span class="text-lg font-bold text-emerald-700"> 個ぶん</span>
+                        </div>
+                        <!-- 隠しマスクカバー -->
+                        <div id="count-mask" class="hidden absolute inset-0 bg-slate-200 rounded-xl flex items-center justify-center text-slate-500 font-bold text-sm cursor-pointer" onclick="toggleCountMask()">
+                            ❓ タップして「こすう」をたしかめる
+                        </div>
+                    </div>
+
+                    <!-- 0.1の集まりの説明グラフィック（3.6等の分解構造に対応） -->
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed space-y-1">
+                        <div class="font-bold text-slate-700 mb-1">🔍 考えてみよう</div>
+                        <div id="explain-breakdown">
+                            ・1L は 0.1L が <span class="font-bold text-emerald-700">10</span> 個<br>
+                            ・0.9L は 0.1L が <span class="font-bold text-emerald-700">9</span> 個<br>
+                            ・あわせると <span class="font-bold text-emerald-700">10 ＋ 9 ＝ 19</span> 個！
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- モード 2: ステップ学習画面 -->
+        <div id="view-step" class="hidden bg-white p-4 sm:p-6 rounded-2xl border-2 border-emerald-300 shadow-sm flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
+                <div>
+                    <h2 class="text-lg font-black text-emerald-900" id="step-title">STEP 1: 0.1を集めよう</h2>
+                    <p class="text-xs text-slate-500" id="step-desc">まずは1未満の小数をブロックで作ってみよう！</p>
+                </div>
+                <div class="flex gap-1 overflow-x-auto max-w-full pb-1">
+                    <button onclick="loadStep(1)" class="step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-emerald-600 text-white">S1</button>
+                    <button onclick="loadStep(2)" class="step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-slate-100 text-slate-600">S2</button>
+                    <button onclick="loadStep(3)" class="step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-slate-100 text-slate-600">S3</button>
+                    <button onclick="loadStep(4)" class="step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-slate-100 text-slate-600">S4</button>
+                    <button onclick="loadStep(5)" class="step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-slate-100 text-slate-600">S5</button>
+                    <button onclick="loadStep(6)" class="step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-slate-100 text-slate-600">S6</button>
+                </div>
+            </div>
+
+            <!-- ステップ専用インタラクティブ・ガイド表示 -->
+            <div id="step-interactive-area" class="bg-amber-50/70 p-4 rounded-xl border border-amber-200 flex flex-col gap-4">
+                <!-- JSで各STEPに応じたガイドとターゲットをレンダリング -->
+            </div>
+
+            <div class="flex justify-between items-center pt-2">
+                <button onclick="prevStep()" id="step-prev-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-40">
+                    ← まえのステップ
+                </button>
+                <button onclick="nextStep()" id="step-next-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md">
+                    つぎのステップ →
+                </button>
+            </div>
+        </div>
+
+        <!-- モード 3: 問題ドリル（スモールステップヒント機能付き） -->
+        <div id="view-drill" class="hidden bg-white p-4 sm:p-6 rounded-2xl border-2 border-sky-300 shadow-sm flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
+                <div>
+                    <h2 class="text-lg font-black text-sky-900">🎯 もんだいに チャレンジ！</h2>
+                    <p class="text-xs text-slate-500">しつもんに こたえて 小数のたつじんになろう！</p>
+                </div>
+                <!-- レベル選択 -->
+                <div class="flex items-center gap-2 text-xs font-bold">
+                    <span>むずかしさ:</span>
+                    <select id="drill-level-select" onchange="generateNewProblem()" class="bg-sky-50 border border-sky-300 rounded-lg p-1.5 font-bold text-sky-900">
+                        <option value="1">レベル1 (0.1 〜 0.9)</option>
+                        <option value="2" selected>レベル2 (1.1 〜 1.9 重点)</option>
+                        <option value="3">レベル3 (2.1 〜 3.9)</option>
+                        <option value="4">レベル4 (4.1 〜 9.9 5.3含む)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 問題カードエリア -->
+            <div class="bg-gradient-to-r from-sky-50 to-indigo-50 p-5 rounded-2xl border-2 border-sky-200 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold bg-sky-200 text-sky-800 px-2.5 py-1 rounded-full" id="drill-type-badge">
+                        B：0.1の個数問題
+                    </span>
+                    <button onclick="generateNewProblem()" class="text-xs bg-white hover:bg-slate-50 text-slate-600 font-bold px-3 py-1 rounded-lg border border-slate-300">
+                        🎲 べつのもんだい
+                    </button>
+                </div>
+
+                <!-- 問題文 -->
+                <div class="text-xl sm:text-2xl font-black text-slate-800 text-center py-2" id="drill-question-text">
+                    1.9 L は 0.1 L の 何個ぶん ですか？
+                </div>
+
+                <!-- 回答フォーム -->
+                <div class="flex justify-center items-center gap-3 my-2">
+                    <input type="number" step="0.1" id="drill-answer-input" placeholder="こたえ" class="w-32 text-center text-2xl font-black p-2.5 border-2 border-sky-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                    <span class="text-lg font-bold text-slate-700" id="drill-unit-label">個ぶん</span>
+                    <button onclick="checkDrillAnswer()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-6 py-3 rounded-xl text-lg shadow-md border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all">
+                        こたえる
+                    </button>
+                </div>
+
+                <!-- 誤答サポート・段階的ヒント表示領域 (スモールステップ誘導) -->
+                <div id="drill-scaffold-box" class="hidden bg-amber-50 border-2 border-amber-300 rounded-xl p-4 flex flex-col gap-3">
+                    <div class="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                        <span>💡 ヒントとサポート</span>
+                    </div>
+                    <div id="drill-scaffold-text" class="text-sm font-bold text-slate-700 leading-relaxed">
+                        <!-- JSで誤答に応じた段階的質問を挿入 -->
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button onclick="switchToExploreWithCurrentTarget()" class="text-xs bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold px-3 py-2 rounded-lg">
+                            🧪 たんけん工場で ブロックを作ってたしかめる
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- モード 4: 教員・ST向け支援記録画面 -->
+        <div id="view-teacher" class="hidden bg-white p-4 sm:p-6 rounded-2xl border-2 border-amber-300 shadow-sm flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <div>
+                    <h2 class="text-lg font-black text-amber-900">📊 支援記録 ＆ 小数の理解プロフィール</h2>
+                    <p class="text-xs text-slate-500">児童のつまづき・試行回数・理解度プロフィールを確認できます。</p>
+                </div>
+                <button onclick="clearHistory()" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 py-1.5 rounded-lg border border-red-200">
+                    🗑️ 記録リセット
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <!-- 小数の理解プロフィールSummary -->
+                <div class="lg:col-span-5 bg-amber-50/60 p-4 rounded-xl border border-amber-200 flex flex-col gap-3">
+                    <h3 class="font-black text-amber-900 text-sm border-b border-amber-200 pb-1">
+                        📋 小数の理解プロフィール（自動判定）
+                    </h3>
+                    <div class="space-y-2 text-xs font-bold" id="profile-checklist">
+                        <!-- JSで判定更新 -->
+                    </div>
+                </div>
+
+                <!-- 学習履歴テーブル -->
+                <div class="lg:col-span-7 flex flex-col gap-2">
+                    <h3 class="font-black text-slate-700 text-sm">📜 実施履歴ログ</h3>
+                    <div class="overflow-x-auto max-h-[300px] border rounded-xl">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0">
+                                <tr>
+                                    <th class="p-2 border-b">日時</th>
+                                    <th class="p-2 border-b">問題</th>
+                                    <th class="p-2 border-b">児童の回答</th>
+                                    <th class="p-2 border-b">結果</th>
+                                    <th class="p-2 border-b">試行</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body" class="divide-y divide-slate-100">
+                                <!-- JSで履歴挿入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        /* ===================================================================
+           1. グローバル状態管理 & 初期設定 (単位拡張対応)
+           =================================================================== */
+        let state = {
+            currentValue: 1.9,      // 現在の数値 (0.1刻み)
+            unitMode: 'volume',     // 'volume' (L/dL) | 'length' (cm/mm)
+            currentMode: 'explore', // 'explore' | 'step' | 'drill' | 'teacher'
+            maskCount: false,       // B領域の数値隠しフラグ
+            audioEnabled: true,     // Web Audio ON/OFF
+            currentStep: 1,         // ステップ学習の現在STEP (1~6)
+            drillProblem: null,     // 現在のドリル問題オブジェクト
+            drillAttempts: 0,       // 現在の問題の試行回数
+            drillHintsUsed: 0,      // ヒント利用回数
+            history: []             // 学習ログ
+        };
+
+        // 単位用テキスト定義アクセサ
+        function getUnitText() {
+            if (state.unitMode === 'volume') {
+                return {
+                    main: 'L',
+                    sub: 'dL',
+                    mainName: 'かさ',
+                    subName: 'デシリットル',
+                    unitFactor: '1L ＝ 10dL ＝ 0.1L × 10',
+                    blockType: '1L タンク',
+                    blockSub: '0.1L ブロック',
+                    icon: '🥛'
+                };
+            } else {
+                return {
+                    main: 'cm',
+                    sub: 'mm',
+                    mainName: 'ながさ',
+                    subName: 'ミリメートル',
+                    unitFactor: '1cm ＝ 10mm ＝ 0.1cm × 10',
+                    blockType: '1cm ブロック',
+                    blockSub: '0.1cm ブロック',
+                    icon: '📏'
+                };
+            }
+        }
+
+        // 単位モード切替 (かさ L/dL ↔ ながさ cm/mm)
+        function setUnitMode(mode) {
+            state.unitMode = mode;
+            const volBtn = document.getElementById('unit-vol-btn');
+            const lenBtn = document.getElementById('unit-len-btn');
+
+            if (mode === 'volume') {
+                volBtn.className = "px-2.5 py-1 rounded-lg bg-emerald-600 text-white shadow font-bold";
+                lenBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200 font-bold";
+                document.getElementById('header-icon').innerText = '🏭';
+            } else {
+                lenBtn.className = "px-2.5 py-1 rounded-lg bg-amber-600 text-white shadow font-bold";
+                volBtn.className = "px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-200 font-bold";
+                document.getElementById('header-icon').innerText = '📏';
+            }
+
+            updateUIUnitLabels();
+            renderAll();
+        }
+
+        function updateUIUnitLabels() {
+            const u = getUnitText();
+            document.getElementById('btn-add-01').innerText = `＋ 0.1${u.main}`;
+            document.getElementById('btn-sub-01').innerText = `－ 0.1${u.main}`;
+            document.getElementById('btn-add-10').innerText = `＋ 1.0${u.main}`;
+            document.getElementById('btn-sub-10').innerText = `－ 1.0${u.main}`;
+
+            document.getElementById('model-section-title').innerText = `${u.icon} A. ${u.mainName}のモデル（ブロック）`;
+            document.getElementById('sub-unit-toggle-label').innerText = `${u.sub} ひょうじ`;
+            document.getElementById('block-hint-text').innerText = state.unitMode === 'volume' 
+                ? `💡 0.1${u.main}が10個あつまると1${u.main}のタンクにまとまります！`
+                : `💡 0.1${u.main}が10個あつまると1${u.main}のテープ(定規)にまとまります！`;
+            document.getElementById('unit-hint').innerText = u.unitFactor;
+
+            document.getElementById('display-label-main').innerText = `いまの ${u.mainName}`;
+            document.getElementById('expr-label-1').innerText = `① 1${u.main} と あと何${u.main}？:`;
+            document.getElementById('expr-label-2').innerText = `② ${u.sub}に直すと？:`;
+            document.getElementById('expr-label-3').innerText = `③ 0.1${u.main}のかけ算:`;
+
+            document.getElementById('count-title-text').innerText = `🧩 B. 0.1${u.main} の こすう`;
+            document.getElementById('count-sub-label').innerText = `0.1${u.main}がぜんぶで...`;
+        }
+
+        // Web Audio API
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function playSound(type) {
+            if (!state.audioEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new AudioContext();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'add') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'combine') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.linearRampToValueAtTime(800, now + 0.25);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'correct') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    osc.frequency.setValueAtTime(783.99, now + 0.2);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.setValueAtTime(140, now + 0.15);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch (e) {
+                console.log("Audio not supported or blocked", e);
+            }
+        }
+
+        function toggleAudio() {
+            state.audioEnabled = !state.audioEnabled;
+            document.getElementById('audio-btn').innerText = state.audioEnabled ? '🔊 おと: ON' : '🔇 おと: OFF';
+        }
+
+        /* ===================================================================
+           2. 画面レンダリング（全領域 A, B, C, D の動的更新）
+           =================================================================== */
+        function round1(val) {
+            return Math.round(val * 10) / 10;
+        }
+
+        function addValue(delta) {
+            const oldVal = state.currentValue;
+            let newVal = round1(state.currentValue + delta);
+            if (newVal < 0) newVal = 0;
+            if (newVal > 9.9) newVal = 9.9; // 9.9まで拡張対応
+            
+            state.currentValue = newVal;
+
+            // スライダー表示同調
+            document.getElementById('value-slider').value = newVal;
+            document.getElementById('slider-val-disp').innerText = newVal.toFixed(1);
+
+            const u = getUnitText();
+            const oldOnes = Math.floor(round1(oldVal));
+            const newOnes = Math.floor(round1(newVal));
+            if (newOnes > oldOnes && delta > 0) {
+                playSound('combine');
+                updateAIMessage(`🎉 0.1${u.main}が10個あつまって、1${u.main}ブロックに まとまりました！`);
+            } else {
+                playSound('add');
+            }
+
+            renderAll();
+        }
+
+        function onSliderChange(val) {
+            state.currentValue = parseFloat(val);
+            document.getElementById('slider-val-disp').innerText = state.currentValue.toFixed(1);
+            renderAll();
+        }
+
+        function resetValue() {
+            state.currentValue = 0.0;
+            document.getElementById('value-slider').value = 0;
+            document.getElementById('slider-val-disp').innerText = '0.0';
+            renderAll();
+        }
+
+        function setExample(val) {
+            state.currentValue = val;
+            document.getElementById('value-slider').value = val;
+            document.getElementById('slider-val-disp').innerText = val.toFixed(1);
+            playSound('combine');
+            const u = getUnitText();
+            updateAIMessage(`「${val}${u.main}」のぶひんを くみたてました！`);
+            renderAll();
+        }
+
+        function renderAll() {
+            const val = state.currentValue;
+            const u = getUnitText();
+            const isSubUnit = document.getElementById('sub-unit-toggle') ? document.getElementById('sub-unit-toggle').checked : false;
+
+            // A. 量・長さのモデル (ブロック描画)
+            renderBlocks(val, isSubUnit);
+
+            // B. 0.1の個数
+            const total01Count = Math.round(val * 10);
+            document.getElementById('display-01-count').innerText = total01Count;
+
+            // C. 数直線
+            renderNumberLine(val);
+
+            // D. 数字と式 (3.6L/cm や 5.3L/cm に完全対応)
+            const ones = Math.floor(val);
+            const tenths = Math.round((val - ones) * 10);
+            const tenthsMain = round1(tenths / 10);
+
+            document.getElementById('display-main-num').innerHTML = `${val.toFixed(1)} <span class="text-2xl text-indigo-500">${u.main}</span>`;
+            document.getElementById('display-dl-alt').innerText = `( ${total01Count} ${u.sub} )`;
+
+            document.getElementById('expr-split-l').innerText = `${ones}${u.main} ＋ ${tenthsMain.toFixed(1)}${u.main}`;
+            document.getElementById('expr-split-dl').innerText = `${ones * 10}${u.sub} ＋ ${tenths}${u.sub} ＝ ${total01Count}${u.sub}`;
+            document.getElementById('expr-multi').innerText = `0.1${u.main} × ${total01Count}`;
+
+            // 0.1の分解説明文（例：3.6なら 3Lは30個、0.6Lは6個）
+            document.getElementById('explain-breakdown').innerHTML = `
+                ・${ones}${u.main} は 0.1${u.main} が <span class="font-bold text-emerald-700">${ones * 10}</span> 個<br>
+                ・${tenthsMain.toFixed(1)}${u.main} は 0.1${u.main} が <span class="font-bold text-emerald-700">${tenths}</span> 個<br>
+                ・あわせると <span class="font-bold text-emerald-700">${ones * 10} ＋ ${tenths} ＝ ${total01Count}</span> 個！
+            `;
+
+            document.getElementById('number-line-val').innerText = `${val.toFixed(1)}${u.main} (${total01Count}${u.sub})`;
+        }
+
+        /* --- A領域：1単位タンク/バー ＆ 0.1単位ブロックの描画 --- */
+        function renderBlocks(val, isSubUnit) {
+            const container = document.getElementById('volume-blocks-container');
+            container.innerHTML = '';
+
+            const u = getUnitText();
+            const total01 = Math.round(val * 10);
+            const isVol = state.unitMode === 'volume';
+
+            if (total01 === 0) {
+                // 0 の時でも空の10等分枠を表示して「0.1で埋めていく」イメージを提示
+                const emptyContainer = document.createElement('div');
+                if (isVol) {
+                    emptyContainer.className = 'container-1L rounded-xl p-2 flex flex-col justify-end items-center relative w-20 sm:w-24 h-44 flex-shrink-0 opacity-75';
+                    let gridHtml = `<div class="w-full h-full flex flex-col-reverse justify-between bg-white/60 rounded overflow-hidden border-2 border-dashed border-sky-300 p-0.5 gap-0.5">`;
+                    for (let l = 0; l < 10; l++) {
+                        gridHtml += `<div class="w-full h-[9%] cell-empty rounded flex items-center justify-center text-[9px]">0.1</div>`;
+                    }
+                    gridHtml += `</div><span class="absolute -top-3 bg-slate-300 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full">0 ${u.main}</span>`;
+                    emptyContainer.innerHTML = gridHtml;
+                } else {
+                    emptyContainer.className = 'container-1cm rounded-xl p-2 flex flex-col justify-center items-center relative w-56 sm:w-64 h-20 flex-shrink-0 opacity-75 my-auto';
+                    let gridHtml = `<div class="w-full h-full flex flex-row justify-between bg-white/60 rounded overflow-hidden border-2 border-dashed border-amber-300 p-0.5 gap-0.5">`;
+                    for (let l = 0; l < 10; l++) {
+                        gridHtml += `<div class="w-[9%] h-full cell-empty rounded flex items-center justify-center text-[9px]">0.1</div>`;
+                    }
+                    gridHtml += `</div><span class="absolute -top-3 bg-slate-300 text-slate-700 text-[10px] font-black px-2 py-0.5 rounded-full">0 ${u.main}</span>`;
+                    emptyContainer.innerHTML = gridHtml;
+                }
+                container.appendChild(emptyContainer);
+                return;
+            }
+
+            // 必要な10等分容器（1L / 1cm枠）の数を計算（例: 3.6 -> 4個の容器枠）
+            const containersCount = Math.max(1, Math.ceil(total01 / 10) + (total01 % 10 === 0 ? 0 : 0));
+
+            let filledSoFar = 0;
+
+            for (let c = 0; c < containersCount; c++) {
+                const isFullUnit = (c + 1) * 10 <= total01;
+                const isPartialUnit = !isFullUnit && (c * 10 < total01);
+
+                if (isVol) {
+                    // 【かさ (L / dL) : 10等分の縦長タンク】
+                    const tank = document.createElement('div');
+                    const isComplete = (c + 1) * 10 <= total01;
+                    tank.className = `container-1L rounded-xl p-2 flex flex-col justify-end items-center relative w-20 sm:w-24 h-44 flex-shrink-0 ${isComplete ? 'anim-combine' : ''}`;
+
+                    let gridHtml = `<div class="w-full h-full flex flex-col-reverse justify-between bg-white/70 rounded overflow-hidden border-2 ${isComplete ? 'border-sky-500 shadow' : 'border-dashed border-sky-300'} p-0.5 gap-0.5">`;
+
+                    for (let layer = 0; layer < 10; layer++) {
+                        filledSoFar++;
+                        const isFilled = filledSoFar <= total01;
+                        const isLatest = filledSoFar === total01;
+
+                        const cellClass = isFilled 
+                            ? `cell-filled ${isLatest ? 'cell-latest' : ''}`
+                            : 'cell-empty';
+
+                        const labelText = isFilled 
+                            ? (isSubUnit ? `1${u.sub}` : `0.1`) 
+                            : `0.1`;
+
+                        gridHtml += `<div class="w-full h-[9%] ${cellClass} rounded flex items-center justify-center text-[9px] select-none">
+                            ${labelText}
+                        </div>`;
+                    }
+                    gridHtml += '</div>';
+
+                    // ヘッダーラベル
+                    const currentContainer01 = Math.min(10, Math.max(0, total01 - c * 10));
+                    const badgeText = isComplete 
+                        ? (isSubUnit ? `10${u.sub}` : `1${u.main}`)
+                        : (isSubUnit ? `${currentContainer01}${u.sub}` : `${(currentContainer01 * 0.1).toFixed(1)}${u.main}`);
+
+                    const badgeColor = isComplete ? 'bg-amber-400 text-amber-950' : 'bg-sky-200 text-sky-900 border border-sky-400';
+
+                    tank.innerHTML = gridHtml + `<span class="absolute -top-3 ${badgeColor} text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                        ${badgeText}
+                    </span>`;
+
+                    container.appendChild(tank);
+
+                } else {
+                    // 【ながさ (cm / mm) : 10等分の横長定規・テープ】
+                    const bar = document.createElement('div');
+                    const isComplete = (c + 1) * 10 <= total01;
+                    bar.className = `container-1cm rounded-xl p-2 flex flex-col justify-center items-center relative w-56 sm:w-64 h-20 flex-shrink-0 my-auto ${isComplete ? 'anim-combine' : ''}`;
+
+                    let gridHtml = `<div class="w-full h-full flex flex-row justify-between bg-white/70 rounded overflow-hidden border-2 ${isComplete ? 'border-amber-500 shadow' : 'border-dashed border-amber-300'} p-0.5 gap-0.5">`;
+
+                    for (let layer = 0; layer < 10; layer++) {
+                        filledSoFar++;
+                        const isFilled = filledSoFar <= total01;
+                        const isLatest = filledSoFar === total01;
+
+                        const cellClass = isFilled 
+                            ? `cell-filled-len ${isLatest ? 'cell-latest' : ''}`
+                            : 'cell-empty';
+
+                        const labelText = isFilled 
+                            ? (isSubUnit ? `1` : `0.1`) 
+                            : `0.1`;
+
+                        gridHtml += `<div class="w-[9%] h-full ${cellClass} rounded flex items-center justify-center text-[9px] select-none">
+                            ${labelText}
+                        </div>`;
+                    }
+                    gridHtml += '</div>';
+
+                    // ヘッダーラベル
+                    const currentContainer01 = Math.min(10, Math.max(0, total01 - c * 10));
+                    const badgeText = isComplete 
+                        ? (isSubUnit ? `10${u.sub}` : `1${u.main}`)
+                        : (isSubUnit ? `${currentContainer01}${u.sub}` : `${(currentContainer01 * 0.1).toFixed(1)}${u.main}`);
+
+                    const badgeColor = isComplete ? 'bg-emerald-600 text-white' : 'bg-amber-200 text-amber-900 border border-amber-400';
+
+                    bar.innerHTML = gridHtml + `<span class="absolute -top-3 ${badgeColor} text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                        ${badgeText}
+                    </span>`;
+
+                    container.appendChild(bar);
+                }
+            }
+        }
+
+        /* --- C領域：数直線SVG描画（多様な数値範囲に対応） --- */
+        function renderNumberLine(val) {
+            const svg = document.getElementById('number-line-svg');
+            const startX = 20;
+            const endX = 600;
+            const u = getUnitText();
+
+            // 表示上限の可変設定 (現在の値に合わせて動的にスケール調整)
+            const maxVal = val > 5.5 ? 10.0 : 6.0;
+            const scale = (endX - startX) / maxVal;
+
+            let html = `
+                <!-- 軸線 -->
+                <line x1="${startX}" y1="45" x2="${endX}" y2="45" stroke="#64748b" stroke-width="3" stroke-linecap="round"/>
+            `;
+
+            const maxTicks = Math.round(maxVal * 10);
+            for (let i = 0; i <= maxTicks; i++) {
+                const currentNum = i / 10;
+                const x = startX + currentNum * scale;
+                const isMajor = i % 10 === 0;
+                const isHalf = i % 5 === 0 && !isMajor;
+
+                const tickHeight = isMajor ? 20 : (isHalf ? 12 : 7);
+                const strokeWidth = isMajor ? 2.5 : 1;
+                const strokeColor = isMajor ? '#0f172a' : '#94a3b8';
+
+                html += `<line x1="${x}" y1="${45 - tickHeight/2}" x2="${x}" y2="${45 + tickHeight/2}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/>`;
+
+                if (isMajor) {
+                    html += `<text x="${x}" y="75" text-anchor="middle" font-size="13" font-weight="bold" fill="#334155">${currentNum}</text>`;
+                }
+            }
+
+            // 現在地ポインター (ピン)
+            const currentX = startX + val * scale;
+            html += `
+                <!-- アニメーションポインター -->
+                <g transform="translate(${currentX}, 45)" style="transition: transform 0.25s ease-out;">
+                    <circle r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="2"/>
+                    <path d="M 0,-9 L -7,-22 L 7,-22 Z" fill="#f59e0b"/>
+                    <text x="0" y="-26" text-anchor="middle" font-size="12" font-weight="900" fill="#b45309">${val.toFixed(1)}${u.main}</text>
+                </g>
+            `;
+
+            svg.innerHTML = html;
+        }
+
+        function updateAIMessage(text) {
+            document.getElementById('ai-message').innerText = text;
+        }
+
+        function toggleCountMask() {
+            state.maskCount = !state.maskCount;
+            const maskEl = document.getElementById('count-mask');
+            if (state.maskCount) {
+                maskEl.classList.remove('hidden');
+            } else {
+                maskEl.classList.add('hidden');
+            }
+        }
+
+        /* ===================================================================
+           3. モード切替 ＆ ステップ学習 (単位連動対応)
+           =================================================================== */
+        function switchMode(mode) {
+            state.currentMode = mode;
+            document.getElementById('view-explore').classList.add('hidden');
+            document.getElementById('view-step').classList.add('hidden');
+            document.getElementById('view-drill').classList.add('hidden');
+            document.getElementById('view-teacher').classList.add('hidden');
+
+            ['explore','step','drill','teacher'].forEach(m => {
+                const btn = document.getElementById(`nav-${m}`);
+                if (m === mode) {
+                    btn.className = "px-3 py-1.5 rounded-lg bg-white text-emerald-800 shadow font-bold";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-white hover:bg-emerald-600 font-bold";
+                }
+            });
+
+            if (mode === 'explore') {
+                document.getElementById('view-explore').classList.remove('hidden');
+                updateAIMessage("「たんけん工場」へようこそ！自由にかさや長さを組み立ててみよう。");
+                renderAll();
+            } else if (mode === 'step') {
+                document.getElementById('view-step').classList.remove('hidden');
+                loadStep(state.currentStep);
+            } else if (mode === 'drill') {
+                document.getElementById('view-drill').classList.remove('hidden');
+                generateNewProblem();
+            } else if (mode === 'teacher') {
+                document.getElementById('view-teacher').classList.remove('hidden');
+                renderTeacherView();
+            }
+        }
+
+        const stepDefinitions = [
+            {
+                title: "STEP 1: 0.1を集めよう",
+                desc: "まずは 0.1 をあつめて 0.7 を作ってみよう！",
+                target: 0.7,
+                aiMsg: "「＋0.1」ボタンを7回おして、0.7を作れるかな？",
+                checkFn: (val) => Math.abs(val - 0.7) < 0.05
+            },
+            {
+                title: "STEP 2: 10個集めると1になる",
+                desc: "0.1を10個集めて、1に合体させよう！",
+                target: 1.0,
+                aiMsg: "0.1を10個あつめると、どんな変化が起きるかな？やってみよう！",
+                checkFn: (val) => Math.abs(val - 1.0) < 0.05
+            },
+            {
+                title: "STEP 3: 1より大きい小数を作る (1.3)",
+                desc: "1ブロック1個 ＋ 0.1ブロック3個で「1.3」を作ろう！",
+                target: 1.3,
+                aiMsg: "1と0.3をあわせて、1.3を組み立てよう！",
+                checkFn: (val) => Math.abs(val - 1.3) < 0.05
+            },
+            {
+                title: "STEP 4: 3.6の組み立てと分解",
+                desc: "1のブロック3個と0.1が6個で「3.6」を作ろう！",
+                target: 3.6,
+                aiMsg: "3.6を作ってみよう！3ブロック ＋ 0.6(6個) ＝ 36個ぶんになるね！",
+                checkFn: (val) => Math.abs(val - 3.6) < 0.05
+            },
+            {
+                title: "STEP 5: 1.9を分解する",
+                desc: "「1.9 ＝ 1 ＋ □」と「0.1×19個」をたしかめよう！",
+                target: 1.9,
+                aiMsg: "1.9を作って、1とあと何個か、0.1が何個か確認しよう！",
+                checkFn: (val) => Math.abs(val - 1.9) < 0.05
+            },
+            {
+                title: "STEP 6: 5.3を分解する",
+                desc: "「5.3 ＝ 0.1の□個分」を解き明かそう！",
+                target: 5.3,
+                aiMsg: "5.3を作ってみよう！5(50個) ＋ 0.3(3個) ＝ 53個になるね！",
+                checkFn: (val) => Math.abs(val - 5.3) < 0.05
+            }
+        ];
+
+        function loadStep(stepNum) {
+            state.currentStep = stepNum;
+            const def = stepDefinitions[stepNum - 1];
+
+            document.getElementById('step-title').innerText = def.title;
+            document.getElementById('step-desc').innerText = def.desc;
+            updateAIMessage(def.aiMsg);
+
+            const btns = document.querySelectorAll('.step-nav-btn');
+            btns.forEach((btn, idx) => {
+                btn.className = (idx + 1 === stepNum) 
+                    ? "step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-emerald-600 text-white"
+                    : "step-nav-btn px-2.5 py-1 text-xs rounded-lg font-bold bg-slate-100 text-slate-600";
+            });
+
+            state.currentValue = 0.0;
+            renderStepArea(def);
+        }
+
+        function renderStepArea(def) {
+            const area = document.getElementById('step-interactive-area');
+            const u = getUnitText();
+            area.innerHTML = `
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-xl border border-amber-300 shadow-sm">
+                    <div>
+                        <div class="text-xs text-amber-800 font-bold">もくひょう</div>
+                        <div class="text-3xl font-black text-amber-900">${def.target} ${u.main}</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="addValue(0.1); checkStepTarget();" class="bg-sky-500 hover:bg-sky-600 text-white font-black px-4 py-2 rounded-xl text-sm shadow">
+                            ＋ 0.1${u.main}
+                        </button>
+                        <button onclick="addValue(1.0); checkStepTarget();" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-sm shadow">
+                            ＋ 1.0${u.main}
+                        </button>
+                        <button onclick="resetValue(); checkStepTarget();" class="bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl text-sm">
+                            りせっと
+                        </button>
+                    </div>
+                </div>
+                <div id="step-block-preview" class="bg-slate-50 p-3 rounded-xl border border-slate-200"></div>
+            `;
+            checkStepTarget();
+        }
+
+        function checkStepTarget() {
+            const def = stepDefinitions[state.currentStep - 1];
+            const isMatch = def.checkFn(state.currentValue);
+            const u = getUnitText();
+
+            const preview = document.getElementById('step-block-preview');
+            const total01 = Math.round(state.currentValue * 10);
+
+            if (isMatch) {
+                playSound('correct');
+                preview.innerHTML = `
+                    <div class="bg-emerald-100 border border-emerald-300 text-emerald-900 p-3 rounded-lg font-bold text-center">
+                        🎉 大せいかい！ ${state.currentValue}${u.main} をつくれました！<br>
+                        <span class="text-xs text-emerald-700">（ 0.1${u.main} が ${total01} 個ぶん ）</span>
+                    </div>
+                `;
+            } else {
+                preview.innerHTML = `
+                    <div class="text-xs font-bold text-slate-600 text-center">
+                        いまの大きさ: <span class="text-base text-indigo-700 font-black">${state.currentValue.toFixed(1)}${u.main}</span> 
+                        （0.1${u.main} が <span class="text-emerald-700 font-black">${total01}</span> 個）
+                    </div>
+                `;
+            }
+        }
+
+        function prevStep() {
+            if (state.currentStep > 1) loadStep(state.currentStep - 1);
+        }
+
+        function nextStep() {
+            if (state.currentStep < 6) loadStep(state.currentStep + 1);
+        }
+
+        /* ===================================================================
+           4. 問題ドリル (多様な数値 3.6, 5.3等 に対応)
+           =================================================================== */
+        const problemTemplates = [
+            { type: 'A', question: (val, ones, tenths, u) => `${val}${u.main} は、1${u.main} が ${ones}個 と あと何${u.main}？`, ans: (val, ones, tenths) => tenths / 10, unitKey: 'main' },
+            { type: 'B', question: (val, ones, tenths, u) => `${val}${u.main} は 0.1${u.main} の 何個ぶん？`, ans: (val, ones, tenths) => Math.round(val * 10), unitText: '個ぶん' },
+            { type: 'C', question: (val, ones, tenths, u) => `${ones}${u.main} と ${(tenths/10).toFixed(1)}${u.main} をあわせると 何${u.main}？`, ans: (val, ones, tenths) => val, unitKey: 'main' },
+            { type: 'D', question: (val, ones, tenths, u) => `0.1${u.main} × □ ＝ ${val}${u.main} の □に入る数は？`, ans: (val, ones, tenths) => Math.round(val * 10), unitText: '' }
+        ];
+
+        function generateNewProblem() {
+            state.drillAttempts = 0;
+            state.drillHintsUsed = 0;
+            document.getElementById('drill-scaffold-box').classList.add('hidden');
+            document.getElementById('drill-answer-input').value = '';
+
+            const u = getUnitText();
+            const level = parseInt(document.getElementById('drill-level-select').value);
+            let targetVal = 3.6;
+
+            if (level === 1) {
+                targetVal = round1((Math.floor(Math.random() * 9) + 1) / 10);
+            } else if (level === 2) {
+                const candidates = [1.1, 1.3, 1.5, 1.9, 1.9];
+                targetVal = candidates[Math.floor(Math.random() * candidates.length)];
+            } else if (level === 3) {
+                // 3.6 などを中心にバリエーション
+                const candidates = [2.4, 3.1, 3.6, 3.6, 3.8];
+                targetVal = candidates[Math.floor(Math.random() * candidates.length)];
+            } else if (level === 4) {
+                const candidates = [4.2, 5.3, 5.3, 7.8, 8.4, 9.5];
+                targetVal = candidates[Math.floor(Math.random() * candidates.length)];
+            }
+
+            const tmpl = problemTemplates[Math.floor(Math.random() * problemTemplates.length)];
+            const ones = Math.floor(targetVal);
+            const tenths = Math.round((targetVal - ones) * 10);
+
+            const displayUnit = tmpl.unitKey ? u[tmpl.unitKey] : tmpl.unitText;
+
+            state.drillProblem = {
+                val: targetVal,
+                ones: ones,
+                tenths: tenths,
+                correctAns: tmpl.ans(targetVal, ones, tenths),
+                type: tmpl.type,
+                unit: displayUnit,
+                questionText: tmpl.question(targetVal, ones, tenths, u)
+            };
+
+            document.getElementById('drill-type-badge').innerText = `タイプ ${tmpl.type} 問題`;
+            document.getElementById('drill-question-text').innerText = state.drillProblem.questionText;
+            document.getElementById('drill-unit-label').innerText = displayUnit;
+
+            updateAIMessage("問題にちょうせん！じっくり考えてこたえてね。");
+        }
+
+        function checkDrillAnswer() {
+            if (!state.drillProblem) return;
+
+            const inputVal = parseFloat(document.getElementById('drill-answer-input').value);
+            state.drillAttempts++;
+
+            const isCorrect = Math.abs(inputVal - state.drillProblem.correctAns) < 0.05;
+
+            logHistory({
+                date: new Date().toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'}),
+                question: state.drillProblem.questionText,
+                userAns: inputVal,
+                isCorrect: isCorrect,
+                attempts: state.drillAttempts,
+                hints: state.drillHintsUsed
+            });
+
+            if (isCorrect) {
+                playSound('correct');
+                updateAIMessage("🎉 すごい！大せいかいです！");
+                alert("🎉 正解です！すばらしい！");
+                generateNewProblem();
+            } else {
+                playSound('wrong');
+                state.drillHintsUsed++;
+                handleScaffoldingHint(inputVal);
+            }
+        }
+
+        /* 誤答に対する段階的サポート */
+        function handleScaffoldingHint(userAns) {
+            const prob = state.drillProblem;
+            const u = getUnitText();
+            const box = document.getElementById('drill-scaffold-box');
+            const textEl = document.getElementById('drill-scaffold-text');
+            box.classList.remove('hidden');
+
+            let hintHtml = '';
+
+            if (prob.type === 'B' && userAns === prob.tenths) {
+                // つまずき典型例：3.6Lは0.1Lの何個分？に「6」と答えた場合
+                hintHtml = `
+                    <p class="text-amber-900 font-bold mb-1">おしい！端数の「0.${prob.tenths}${u.main}」が「${prob.tenths}個」だと気づけたね！</p>
+                    <ol class="list-decimal list-inside space-y-1 text-xs">
+                        <li>まず、0.${prob.tenths}${u.main} は 0.1${u.main} が <span class="text-emerald-700 font-bold">${prob.tenths}個</span> だね。</li>
+                        <li>じゃあ、大きな<span class="text-emerald-700 font-bold">${prob.ones}${u.main}</span> は 0.1${u.main} が 何個ぶんかな？（${prob.ones * 10}個だね！）</li>
+                        <li>あわせると、ぜんぶで何個になるかな？（${prob.ones * 10} ＋ ${prob.tenths}）</li>
+                    </ol>
+                `;
+            } else {
+                hintHtml = `
+                    <p class="text-amber-900 font-bold mb-1">いっしょに じゅんばんに 考えてみよう！</p>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li>${prob.val}${u.main} の なかの 「1${u.main}ブロック」は <span class="text-indigo-700 font-bold">${prob.ones} 個</span>（0.1が ${prob.ones * 10}個ぶん）</li>
+                        <li>端数の 「0.${prob.tenths}${u.main}」は 0.1が <span class="text-emerald-700 font-bold">${prob.tenths} 個ぶん</span></li>
+                        <li>あわせると… <span class="font-bold border-b-2 border-amber-500">${prob.ones * 10} ＋ ${prob.tenths}</span> になるよ！</li>
+                    </ul>
+                `;
+            }
+
+            textEl.innerHTML = hintHtml;
+            updateAIMessage("ヒントをさんこうにして、もういちど考えてみよう！");
+        }
+
+        function switchToExploreWithCurrentTarget() {
+            if (state.drillProblem) {
+                state.currentValue = state.drillProblem.val;
+                document.getElementById('value-slider').value = state.drillProblem.val;
+                document.getElementById('slider-val-disp').innerText = state.drillProblem.val.toFixed(1);
+            }
+            switchMode('explore');
+        }
+
+        /* ===================================================================
+           5. 教員・支援者向け記録
+           =================================================================== */
+        function logHistory(entry) {
+            state.history.unshift(entry);
+            if (state.history.length > 30) state.history.pop();
+            try {
+                localStorage.setItem('decimal_factory_history', JSON.stringify(state.history));
+            } catch(e) {}
+        }
+
+        function renderTeacherView() {
+            try {
+                const saved = localStorage.getItem('decimal_factory_history');
+                if (saved) state.history = JSON.parse(saved);
+            } catch(e) {}
+
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '';
+
+            if (state.history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-3 text-center text-slate-400">まだ学習記録がありません。</td></tr>`;
+            } else {
+                state.history.forEach(h => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="p-2 border-b text-slate-500">${h.date}</td>
+                        <td class="p-2 border-b font-bold text-slate-700">${h.question}</td>
+                        <td class="p-2 border-b font-bold">${h.userAns}</td>
+                        <td class="p-2 border-b font-bold ${h.isCorrect ? 'text-emerald-600' : 'text-red-500'}">
+                            ${h.isCorrect ? '◯ 正解' : '× 不正解'}
+                        </td>
+                        <td class="p-2 border-b text-slate-500">${h.attempts}回</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            const totalLogs = state.history.length;
+            const correctLogs = state.history.filter(h => h.isCorrect).length;
+            const accuracy = totalLogs > 0 ? Math.round((correctLogs / totalLogs) * 100) : 0;
+
+            const profileHtml = `
+                <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-200">
+                    <span>0.1の量的理解（かさ・長さ共通）</span>
+                    <span class="text-emerald-600 font-black">○ 良好</span>
+                </div>
+                <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-200">
+                    <span>1 ＝ 0.1 × 10 の対応（1L=10dL / 1cm=10mm）</span>
+                    <span class="${accuracy > 60 ? 'text-emerald-600' : 'text-amber-600'} font-black">
+                        ${accuracy > 60 ? '○ 定着' : '△ 支援推奨'}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-200">
+                    <span>1より大きい小数の分解 (1.9, 3.6等)</span>
+                    <span class="text-emerald-600 font-black">○ 理解</span>
+                </div>
+                <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-200">
+                    <span>3.6 ＝ 0.1 × 36 の集合的捉え</span>
+                    <span class="${accuracy > 75 ? 'text-emerald-600' : 'text-amber-600'} font-black">
+                        ${accuracy > 75 ? '○ 達成' : '△ ブロック操作で継続練習'}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-200">
+                    <span>5.3, 7.8 などの発展構造化</span>
+                    <span class="${accuracy > 85 ? 'text-emerald-600' : 'text-slate-500'} font-black">
+                        ${accuracy > 85 ? '○ 達成' : '◇ ステップ4~6で練習'}
+                    </span>
+                </div>
+            `;
+
+            document.getElementById('profile-checklist').innerHTML = profileHtml;
+        }
+
+        function clearHistory() {
+            if (confirm("学習記録をリセットしますか？")) {
+                state.history = [];
+                try {
+                    localStorage.removeItem('decimal_factory_history');
+                } catch(e) {}
+                renderTeacherView();
+            }
+        }
+
+        window.onload = function() {
+            updateUIUnitLabels();
+            renderAll();
+            setTimeout(() => {
+                renderNumberLine(state.currentValue);
+            }, 100);
+        };
+    </script>
+</body>
+</html>
